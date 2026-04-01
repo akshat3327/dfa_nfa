@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automata Pro — Interactive Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/* --- BASE & VARIABLES (BLACK & GOLD THEME) --- */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0c; 
+  --glass-bg:rgba(20, 15, 10, 0.65);
+  --glass-border:rgba(255, 170, 0, 0.15);
+  --glass-shadow:0 8px 32px rgba(0, 0, 0, 0.8);
+  
+  /* Primary: Gold / Amber / Orange */
+  --accent:#ffaa00; --accent-h:#ffcc00; --accent-l:#ff6600; --accent-glow:rgba(255, 170, 0, 0.4);
+  
+  /* Secondary (replaces purple): Crimson / Red for NFA */
+  --secondary:#ff2a55; --secondary-h:#ff4d70; --secondary-glow:rgba(255, 42, 85, 0.4);
+  
+  /* Utilities */
+  --emerald:#00ff88; --emerald-glow:rgba(0, 255, 136, 0.4);
+  --red:#ff2a55; --red-glow:rgba(255, 42, 85, 0.4);
+  
+  --text:#f8fafc; --t2:#cbd5e1; --t3:#94a3b8; --t4:#475569;
+  --r:12px; --r-sm:8px; --r-lg:20px; --r-xl:28px;
+  --font-ui:'Inter',sans-serif; --font-mono:'JetBrains Mono',monospace; --font-brand:'Space Grotesk',sans-serif;
+  --tr:all .3s cubic-bezier(.25,.8,.25,1);
+}
+body{font-family:var(--font-ui);background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;user-select:none;-webkit-font-smoothing:antialiased;}
+
+/* --- VIEW MANAGER --- */
+.view { display: none; height: 100%; width: 100%; position: absolute; inset: 0; z-index: 1; }
+.view.active { display: flex; animation: fadeIn 0.5s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+
+/* --- THEORY PAGE (3D & INTERACTIVE) --- */
+#view-theory { overflow-y: auto; overflow-x: hidden; background: radial-gradient(circle at 50% 0%, #1a1208 0%, var(--bg) 70%); flex-direction: column;}
+.blob { position: absolute; filter: blur(90px); opacity: 0.35; border-radius: 50%; animation: float 12s infinite alternate ease-in-out; pointer-events: none; z-index: 0; }
+.blob-1 { width: 400px; height: 400px; background: var(--accent-l); top: -100px; left: -100px; }
+.blob-2 { width: 500px; height: 500px; background: var(--secondary); bottom: -100px; right: -100px; animation-delay: -6s; }
+@keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(40px, 40px) scale(1.1); } }
+
+.th-container { max-width: 1100px; margin: 0 auto; padding: 60px 24px 100px 24px; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+.th-hero { text-align: center; margin-bottom: 60px; animation: slideUp 0.8s ease backwards; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+.th-badge { display: inline-block; padding: 8px 16px; background: rgba(255,170,0,0.1); border: 1px solid var(--accent-glow); border-radius: 30px; color: var(--accent); font-family: var(--font-brand); font-size: 12px; font-weight: 700; letter-spacing: 2px; margin-bottom: 24px; text-transform: uppercase; box-shadow: 0 0 20px var(--accent-glow); }
+.th-title { font-family: var(--font-brand); font-size: 64px; font-weight: 800; line-height: 1.1; margin-bottom: 24px; background: linear-gradient(135deg, #fff 20%, #ffd075); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.th-desc { font-size: 18px; color: var(--t2); max-width: 650px; margin: 0 auto 40px auto; line-height: 1.6; }
+.th-btn-main { padding: 16px 40px; font-family: var(--font-brand); font-size: 16px; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--accent-l), var(--accent)); border: 1px solid rgba(255,255,255,0.2); border-radius: 30px; cursor: pointer; transition: var(--tr); box-shadow: 0 10px 30px var(--accent-glow); display: inline-flex; align-items: center; gap: 12px; }
+.th-btn-main:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 15px 40px var(--accent-glow); }
+
+.th-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; width: 100%; margin-bottom: 60px; }
+.th-card { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--r-xl); padding: 40px; position: relative; box-shadow: var(--glass-shadow); transition: transform 0.4s ease, box-shadow 0.4s ease; transform-style: preserve-3d; perspective: 1000px; }
+.th-card:hover { transform: translateY(-8px) rotateX(2deg) rotateY(-2deg); box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,170,0,0.3); }
+.th-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+.th-card.dfa::before { background: linear-gradient(90deg, var(--accent), var(--accent-l)); box-shadow: 0 0 20px var(--accent-glow); }
+.th-card.nfa::before { background: linear-gradient(90deg, var(--secondary), #ff003c); box-shadow: 0 0 20px var(--secondary-glow); }
+
+.th-c-title { font-family: var(--font-brand); font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; transform: translateZ(20px); }
+.th-c-tag { font-size: 11px; padding: 6px 12px; border-radius: 20px; font-weight: 700; letter-spacing: 1.5px; }
+.th-card.dfa .th-c-tag { background: rgba(255,170,0,0.1); color: var(--accent); border: 1px solid var(--accent-glow); }
+.th-card.nfa .th-c-tag { background: rgba(255,42,85,0.1); color: var(--secondary-h); border: 1px solid var(--secondary-glow); }
+.th-c-text { font-size: 15px; color: var(--t2); line-height: 1.7; margin-bottom: 24px; transform: translateZ(15px); }
+.th-list { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; transform: translateZ(10px); }
+.th-list li { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: var(--t2); line-height: 1.5; }
+.th-list li::before { content: '✦'; color: var(--accent); font-size: 16px; }
+.th-card.nfa .th-list li::before { color: var(--secondary); }
+
+.math-box { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--r); padding: 20px; font-family: var(--font-mono); font-size: 14px; color: var(--t3); transform: translateZ(5px); }
+.math-box span { color: var(--accent); font-weight: 700; text-shadow: 0 0 10px var(--accent-glow); }
+.th-card.nfa .math-box span { color: var(--secondary-h); text-shadow: 0 0 10px var(--secondary-glow); }
+
+/* INTERACTIVE EDUCATIONAL DEMO */
+.demo-section { width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: var(--r-xl); padding: 40px; box-shadow: inset 0 0 40px rgba(0,0,0,0.8); text-align: center; }
+.demo-title { font-family: var(--font-brand); font-size: 24px; font-weight: 700; margin-bottom: 10px; color: #fff; }
+.demo-subtitle { font-size: 14px; color: var(--t2); margin-bottom: 40px; }
+.demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+.demo-col { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--r-lg); padding: 30px 20px; min-height: 220px; display: flex; flex-direction: column; align-items: center; }
+.demo-col h4 { font-family: var(--font-brand); color: var(--t3); letter-spacing: 2px; margin-bottom: 30px; }
+
+/* Demo Graph Flexbox Structures */
+.demo-graph { display: flex; align-items: center; justify-content: center; width: 100%; position: relative; }
+.d-node { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--t4); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; background: var(--bg); color: var(--t3); transition: var(--tr); z-index: 2; flex-shrink: 0; }
+.d-node.accept { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--t4); }
+.d-edge { height: 2px; width: 40px; background: var(--t4); position: relative; transition: var(--tr); margin: 0 5px; }
+.d-edge::after { content: attr(data-sym); position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 12px; font-family: var(--font-mono); color: var(--t3); transition: var(--tr); }
+
+/* NFA Diagonal split structure */
+.nfa-split-container { position: relative; width: 50px; height: 80px; margin: 0 5px; }
+.d-edge-diag { position: absolute; left: 0; width: 55px; height: 2px; background: var(--t4); transform-origin: left center; transition: var(--tr); }
+.d-edge-diag.up { top: 40px; transform: rotate(-35deg); }
+.d-edge-diag.dn { top: 40px; transform: rotate(35deg); }
+.d-edge-diag::after { content: attr(data-sym); position: absolute; left: 50%; font-size: 11px; font-family: var(--font-mono); color: var(--t3); transition: var(--tr); }
+.d-edge-diag.up::after { top: -18px; transform: translateX(-50%) rotate(35deg); }
+.d-edge-diag.dn::after { bottom: -18px; transform: translateX(-50%) rotate(-35deg); }
+
+/* Demo Animation States */
+.d-node.active { border-color: var(--accent); color: #000; background: var(--accent); box-shadow: 0 0 20px var(--accent-glow); transform: scale(1.1); }
+.d-node.accept.active { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent), 0 0 20px var(--accent-glow); }
+
+.d-node.sec-active { border-color: var(--secondary); color: #fff; background: var(--secondary); box-shadow: 0 0 20px var(--secondary-glow); transform: scale(1.1); }
+.d-node.accept.sec-active { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--secondary), 0 0 20px var(--secondary-glow); }
+
+.d-edge.active, .d-edge-diag.active { background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); z-index: 1; }
+.d-edge.active::after, .d-edge-diag.active::after { color: var(--accent); text-shadow: 0 0 8px var(--accent-glow); }
+
+.d-edge.sec-active, .d-edge-diag.sec-active { background: var(--secondary); box-shadow: 0 0 10px var(--secondary-glow); z-index: 1; }
+.d-edge.sec-active::after, .d-edge-diag.sec-active::after { color: var(--secondary-h); text-shadow: 0 0 8px var(--secondary-glow); }
+
+.demo-btn { padding: 12px 28px; background: rgba(255,170,0,0.1); border: 1px solid rgba(255,170,0,0.3); border-radius: 30px; color: var(--accent); font-family: var(--font-brand); font-size: 14px; font-weight: 700; cursor: pointer; transition: var(--tr); }
+.demo-btn:hover { background: rgba(255,170,0,0.2); box-shadow: 0 0 20px var(--accent-glow); color: #fff; }
+.demo-status { height: 20px; margin-top: 20px; font-family: var(--font-mono); font-size: 14px; color: var(--emerald); font-weight: 700; text-shadow: 0 0 10px var(--emerald-glow); opacity: 0; transition: 0.3s; }
+
+/* --- SIMULATOR LAYOUT (FLOATING UI) --- */
+#view-simulator { background: var(--bg); position: relative; }
+#canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; }
+
+.ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; display: flex; flex-direction: column; padding: 20px; }
+.glass-panel { background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); border-radius: var(--r-lg); pointer-events: auto; }
+
+header { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 20px; flex-shrink: 0; margin-bottom: 20px; }
+.logo { display: flex; align-items: center; gap: 10px; margin-right: 10px; }
+.logo-icon { width: 34px; height: 34px; background: linear-gradient(135deg, var(--accent), var(--accent-l)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #000; box-shadow: 0 0 15px var(--accent-glow); }
+.logo-text { font-family: var(--font-brand); font-size: 15px; font-weight: 800; background: linear-gradient(135deg, #fff, var(--accent-h)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px;}
+.hsp { flex: 1; }
+
+.mode-grp { display: flex; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: var(--r); overflow: hidden; padding: 4px; gap: 4px;}
+.mode-btn { padding: 6px 20px; background: transparent; border: none; color: var(--t3); font-family: var(--font-brand); font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: var(--tr); border-radius: var(--r-sm); }
+.mode-btn.active { background: var(--accent-l); color: #000; box-shadow: 0 0 15px var(--accent-glow); }
+.hbtn { padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--r); color: var(--text); font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: var(--tr); white-space: nowrap; }
+.hbtn:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.4); border-color: var(--accent); }
+.hbtn.th-link { background: rgba(255, 170, 0, 0.1); border-color: rgba(255, 170, 0, 0.3); color: var(--accent); }
+.hbtn.th-link:hover { background: rgba(255, 170, 0, 0.2); box-shadow: 0 0 15px var(--accent-glow); color: #fff;}
+
+.workspace-middle { display: flex; flex: 1; min-height: 0; gap: 20px; position: relative; pointer-events: none; }
+aside { width: 240px; display: flex; flex-direction: column; padding: 20px; gap: 20px; overflow-y: auto; max-height: 100%; scrollbar-width: none; pointer-events: auto; }
+aside::-webkit-scrollbar { display: none; }
+
+.sec { font-size: 10px; letter-spacing: 2px; color: var(--accent-h); font-family: var(--font-brand); font-weight: 800; margin-bottom: 8px; text-transform: uppercase; }
+.tool-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: transparent; border: 1px solid transparent; border-radius: var(--r); color: var(--t2); font-family: var(--font-ui); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--tr); margin-bottom: 4px; text-align: left; }
+.tool-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+.tool-btn.active { background: rgba(255,170,0,0.15); border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px rgba(255,170,0,0.2); }
+.tool-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+
+.prop-panel { display: none; background: rgba(0,0,0,0.4); padding: 12px; border-radius: var(--r); border: 1px solid var(--glass-border); }
+.prop-panel.vis { display: block; animation: fadeIn 0.3s ease; }
+.prop-inp { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); border-radius: var(--r-sm); color: var(--accent); font-family: var(--font-mono); font-size: 14px; font-weight: bold; padding: 8px 12px; margin-bottom: 8px; outline: none; transition: var(--tr); }
+.prop-inp:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+.prop-btn { display: block; width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: var(--r-sm); color: var(--t2); font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: var(--tr); text-align: left; margin-bottom: 4px; }
+.prop-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.prop-btn.active { border-color: var(--emerald); color: var(--emerald); background: rgba(0,255,136,0.1); box-shadow: 0 0 10px var(--emerald-glow); }
+.prop-btn.sb:hover { border-color: var(--accent-l); color: var(--accent-l); }
+.prop-btn.sb.active { border-color: var(--accent); color: var(--accent); background: rgba(255,170,0,0.1); box-shadow: 0 0 10px rgba(255,170,0,0.3); }
+.prop-btn.del:hover { border-color: var(--secondary); color: var(--secondary); background: rgba(255,42,85,0.1); box-shadow: 0 0 10px var(--secondary-glow); }
+
+.leg-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--t2); margin-bottom: 8px; font-weight: 500;}
+.leg-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid; flex-shrink: 0; box-shadow: inset 0 0 10px rgba(0,0,0,0.8);}
+.instr { font-size: 12px; color: var(--t2); line-height: 1.8; }
+.instr b { color: var(--accent); }
+
+.hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: #fff; padding: 10px 24px; border-radius: 30px; pointer-events: auto; transition: opacity 0.3s; }
+
+.sim-bar { padding: 16px 20px; display: flex; align-items: center; gap: 16px; margin-top: 20px; pointer-events: auto; }
+.sim-lbl { font-size: 10px; letter-spacing: 2px; color: var(--accent-h); font-family: var(--font-brand); font-weight: 800; margin-bottom: 4px; text-transform: uppercase; }
+.sim-inp { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--r); color: var(--accent); font-family: var(--font-mono); font-size: 18px; font-weight: 700; padding: 8px 16px; width: 180px; outline: none; letter-spacing: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.8); transition: var(--tr); text-transform: lowercase; }
+.sim-inp:focus { border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow), inset 0 2px 4px rgba(0,0,0,0.5); }
+.sbtn { padding: 10px 18px; border: 1px solid rgba(255,255,255,0.1); border-radius: var(--r); background: rgba(255,255,255,0.05); color: var(--text); font-family: var(--font-ui); font-size: 12px; font-weight: 700; cursor: pointer; transition: var(--tr); white-space: nowrap; }
+.sbtn:hover:not(:disabled) { background: rgba(255,255,255,0.1); transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.5); border-color: var(--accent); }
+.sbtn:active:not(:disabled) { transform: translateY(0); }
+.sbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.sbtn.run { border-color: var(--emerald); color: var(--emerald); background: rgba(0,255,136,0.05); }
+.sbtn.run:hover:not(:disabled) { background: rgba(0,255,136,0.15); box-shadow: 0 0 15px var(--emerald-glow); color: #fff; }
+
+.tape-wrap { flex: 1; display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; }
+.tape-wrap::-webkit-scrollbar{display:none;}
+.tc { width: 40px; height: 40px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-family: var(--font-mono); font-weight: 700; color: var(--t2); background: rgba(0,0,0,0.5); transition: var(--tr); box-shadow: inset 0 2px 5px rgba(0,0,0,0.8); }
+.tc.read { color: var(--t4); border-color: transparent; background: rgba(0,0,0,0.2); opacity: 0.5; }
+.tc.cur { border-color: var(--accent); color: #000; background: var(--accent); box-shadow: 0 0 20px var(--accent-glow); transform: scale(1.1); z-index: 2; }
+
+.sim-stat { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 160px; }
+.st-disp { font-size: 12px; color: var(--t3); font-weight: 600; }
+.st-disp span { color: var(--accent); font-size: 14px; font-weight: 700; font-family: var(--font-mono); }
+.result { font-family: var(--font-brand); font-size: 14px; font-weight: 800; letter-spacing: 1.5px; padding: 6px 16px; border-radius: var(--r); border: 1px solid transparent; transition: var(--tr); text-transform: uppercase; }
+.result.ok { color: #000; border-color: var(--emerald); background: var(--emerald); box-shadow: 0 0 20px var(--emerald-glow); }
+.result.bad { color: #fff; border-color: var(--secondary); background: var(--secondary); box-shadow: 0 0 20px var(--secondary-glow); }
+
+/* --- MODALS & TOASTS --- */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 999; opacity: 1; transition: opacity 0.3s; pointer-events: auto;}
+.overlay.off { opacity: 0; pointer-events: none; }
+.modal-box { background: var(--glass-bg); border: 1px solid var(--accent); border-radius: var(--r-xl); padding: 32px; min-width: 360px; box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 30px var(--accent-glow); transform: scale(1); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.overlay.off .modal-box { transform: scale(0.9); }
+.m-title { font-family: var(--font-brand); font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.m-sub { font-size: 13px; color: var(--t2); margin-bottom: 20px; line-height: 1.6; }
+.m-inp { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--r); color: var(--accent); font-family: var(--font-mono); font-size: 24px; font-weight: 700; padding: 12px 16px; outline: none; letter-spacing: 4px; margin-bottom: 24px; text-align: center; transition: var(--tr); }
+.m-inp:focus { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+.m-btns { display: flex; gap: 12px; justify-content: flex-end; }
+.mbtn { padding: 10px 24px; border-radius: var(--r); border: 1px solid; font-family: var(--font-ui); font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--tr); }
+.mbtn.ok { border-color: var(--accent); color: #000; background: var(--accent); }
+.mbtn.ok:hover { background: var(--accent-h); box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-2px); }
+.mbtn.no { border-color: rgba(255,255,255,0.2); color: var(--text); background: transparent; }
+.mbtn.no:hover { border-color: var(--secondary); color: #fff; background: var(--secondary); box-shadow: 0 0 15px var(--secondary-glow); }
+
+.toast { position: fixed; top: 20px; left: 50%; transform: translate(-50%, -20px); background: rgba(0,0,0,0.8); border: 1px solid var(--accent); border-radius: 30px; padding: 12px 28px; font-size: 13px; font-weight: 700; color: var(--accent); z-index: 1000; opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px var(--accent-glow); }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<!-- THEORY PAGE VIEW -->
+<div id="view-theory" class="view active">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  
+  <div class="th-container">
+    <div class="th-hero">
+      <div class="th-badge">Interactive Learning</div>
+      <h1 class="th-title">Automata Theory,<br>Visualized.</h1>
+      <p class="th-desc">Design, simulate, and debug Finite Automata in a modern 3D workspace. Build computational models and watch data streams traverse your graph in real-time.</p>
+      <button class="th-btn-main" id="btn-launch-sim">
+        Launch Simulator <span style="font-size: 20px; line-height: 0;">→</span>
+      </button>
+    </div>
+
+    <div class="th-grid">
+      <!-- DFA CARD -->
+      <div class="th-card dfa">
+        <h2 class="th-c-title">DFA <span class="th-c-tag">DETERMINISTIC</span></h2>
+        <p class="th-c-text">A <b>Deterministic Finite Automaton</b> guarantees exactly one valid path for every sequence of inputs. No ambiguity, and no jumping between states without consuming input.</p>
+        <ul class="th-list">
+          <li>One unique transition per state per symbol.</li>
+          <li>No empty (epsilon / ε) transitions allowed.</li>
+          <li>Always knows exactly what state it is in.</li>
+        </ul>
+        <div class="math-box">
+          M = (Q, Σ, δ, q₀, F)<br><br>
+          δ: Transition function <span>(Q × Σ → Q)</span>
+        </div>
+      </div>
+
+      <!-- NFA CARD -->
+      <div class="th-card nfa">
+        <h2 class="th-c-title">NFA <span class="th-c-tag">NON-DETERMINISTIC</span></h2>
+        <p class="th-c-text">A <b>Nondeterministic Finite Automaton</b> explores multiple paths simultaneously. It branches into parallel realities to "guess" the correct path to an accepting state.</p>
+        <ul class="th-list">
+          <li>Can have 0, 1, or multiple transitions for a symbol.</li>
+          <li>Allows epsilon (ε) transitions (moving without input).</li>
+          <li>Accepts if <i>at least one</i> branching path succeeds.</li>
+        </ul>
+        <div class="math-box">
+          M = (Q, Σ, δ, q₀, F)<br><br>
+          δ: Transition function <span>(Q × (Σ ∪ {ε}) → P(Q))</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDUCATIONAL INTERACTIVE DEMO -->
+    <div class="demo-section">
+      <h3 class="demo-title">Visualizing the Difference</h3>
+      <p class="demo-subtitle">Watch how a DFA vs NFA processes the string <b style="color:var(--accent)">"ab"</b></p>
+      
+      <div class="demo-grid">
+        <!-- DFA Demo Column -->
+        <div class="demo-col">
+          <h4>DFA Execution</h4>
+          <div class="demo-graph">
+            <div class="d-node" id="d1">q0</div>
+            <div class="d-edge" id="de1" data-sym="a"></div>
+            <div class="d-node" id="d2">q1</div>
+            <div class="d-edge" id="de2" data-sym="b"></div>
+            <div class="d-node accept" id="d3">q2</div>
+          </div>
+        </div>
+        
+        <!-- NFA Demo Column -->
+        <div class="demo-col">
+          <h4>NFA Execution</h4>
+          <div class="demo-graph">
+            <div class="d-node" id="n1">q0</div>
+            
+            <div class="nfa-split-container">
+               <div class="d-edge-diag up" id="ne1" data-sym="a"></div>
+               <div class="d-edge-diag dn" id="ne2" data-sym="a"></div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+               <div style="display: flex; align-items: center;">
+                 <div class="d-node" id="n2">q1</div>
+                 <div class="d-edge" id="ne3" data-sym="b" style="width: 30px;"></div>
+                 <div class="d-node accept" id="n3">q2</div>
+               </div>
+               <div style="display: flex; align-items: center;">
+                 <div class="d-node" id="n4">q3</div>
+                 <div class="d-edge" id="ne4" data-sym="b" style="width: 30px;"></div>
+                 <div class="d-node" id="n5">q4</div>
+               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <button class="demo-btn" id="btn-play-demo">▶ Simulate Input "ab"</button>
+      <div class="demo-status" id="demo-status"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SIMULATOR VIEW -->
+<div id="view-simulator" class="view">
+  
+  <!-- Canvas is in background -->
+  <canvas id="canvas"></canvas>
+  
+  <!-- UI overlayed on top. Pointer-events are carefully managed here to allow canvas clicks! -->
+  <div class="ui-layer">
+    <header class="glass-panel">
+      <div class="logo"><div class="logo-icon">Σ</div><div class="logo-text">AUTOMATA PRO</div></div>
+      <div class="hsp"></div>
+      <button class="hbtn th-link" id="btn-back-theory">📖 THEORY</button>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:1px;margin-right:4px;font-weight:700">MODE:</div>
+      <div class="mode-grp">
+        <button class="mode-btn active" id="btn-dfa">DFA</button>
+        <button class="mode-btn" id="btn-nfa">NFA</button>
+      </div>
+      <button class="hbtn" style="margin-left: 12px;" id="btn-example">⊞ EXAMPLE</button>
+      <button class="hbtn" id="btn-clear">✕ CLEAR</button>
+    </header>
+
+    <div class="workspace-middle">
+      <aside class="glass-panel">
+        <div>
+          <div class="sec">TOOLS</div>
+          <button class="tool-btn active" data-tool="select"><span class="tool-icon">⊹</span><span>Select / Move</span></button>
+          <button class="tool-btn" data-tool="state"><span class="tool-icon">⊕</span><span>Add State</span></button>
+          <button class="tool-btn" data-tool="transition"><span class="tool-icon">→</span><span>Add Transition</span></button>
+          <button class="tool-btn" data-tool="delete"><span class="tool-icon">✕</span><span>Delete</span></button>
+        </div>
+        <div class="prop-panel" id="prop-panel">
+          <div class="sec">SELECTED STATE</div>
+          <input class="prop-inp" id="lbl-inp" type="text" placeholder="Label" maxlength="6">
+          <button class="prop-btn sb" id="btn-start">◀ Set as Start</button>
+          <button class="prop-btn" id="btn-accept">⊙ Toggle Accepting</button>
+          <button class="prop-btn del" id="btn-del-s">✕ Delete State</button>
+        </div>
+        <div>
+          <div class="sec">LEGEND</div>
+          <div class="leg-item"><div class="leg-dot" style="border-color:#475569;background:rgba(255,255,255,0.05)"></div>Normal</div>
+          <div class="leg-item"><div class="leg-dot" style="border-color:var(--emerald);box-shadow:0 0 10px var(--emerald);background:rgba(0,255,136,0.1)"></div>Accepting</div>
+          <div class="leg-item"><div class="leg-dot" style="border-color:var(--secondary);background:rgba(255,42,85,0.1)"></div>Start →</div>
+          <div class="leg-item"><div class="leg-dot" style="border-color:var(--accent);box-shadow:0 0 10px var(--accent);background:rgba(255,170,0,0.2)"></div>Active</div>
+        </div>
+        <div>
+          <div class="sec">SHORTCUTS</div>
+          <div class="instr"><b>V</b> : Select<br><b>S</b> : Add State<br><b>T</b> : Add Transition<br><b>D</b> : Delete<br><b>Double-Click</b> : Toggle Accept</div>
+        </div>
+      </aside>
+      
+      <div class="hint glass-panel" id="hint">Select ADD STATE and click the canvas to create states</div>
+    </div>
+
+    <div class="sim-bar glass-panel">
+      <div><div class="sim-lbl">INPUT DATA STREAM</div>
+      <input class="sim-inp" id="sim-inp" type="text" placeholder="e.g. aabb" autocomplete="off" spellcheck="false"></div>
+      <button class="sbtn run" id="btn-run">▶ RUN</button>
+      <button class="sbtn" id="btn-step" disabled>STEP →</button>
+      <button class="sbtn" id="btn-back" disabled>← BACK</button>
+      <button class="sbtn" id="btn-reset">■ RESET</button>
+      <div class="tape-wrap" id="tape"></div>
+      <div class="sim-stat">
+        <div class="st-disp" id="st-disp">STATES: <span>—</span></div>
+        <div class="result" id="result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay off" id="modal">
+  <div class="modal-box">
+    <div class="m-title">ADD TRANSITION</div>
+    <div class="m-sub" id="m-sub">Enter symbol(s). Comma-separate for multiple (a,b).<br>Use ε for epsilon (NFA only).</div>
+    <input class="m-inp" id="m-inp" type="text" placeholder="a" maxlength="30">
+    <div class="m-btns">
+      <button class="mbtn no" id="m-cancel">CANCEL</button>
+      <button class="mbtn ok" id="m-ok">ADD PATH →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// --- VIEW NAVIGATION ---
+document.getElementById('btn-launch-sim').addEventListener('click', () => {
+  document.getElementById('view-theory').classList.remove('active');
+  document.getElementById('view-simulator').classList.add('active');
+  window.dispatchEvent(new Event('resize')); // Resize canvas to screen bounds
+});
+document.getElementById('btn-back-theory').addEventListener('click', () => {
+  document.getElementById('view-simulator').classList.remove('active');
+  document.getElementById('view-theory').classList.add('active');
+});
+
+// --- THEORY INTERACTIVE DEMO LOGIC ---
+document.getElementById('btn-play-demo').addEventListener('click', function() {
+  const btn = this;
+  const status = document.getElementById('demo-status');
+  if(btn.disabled) return;
+  btn.disabled = true;
+  status.style.opacity = '1';
+  status.textContent = 'Initializing...';
+  status.style.color = "var(--t2)";
+  status.style.textShadow = "none";
+  
+  // Reset all
+  document.querySelectorAll('.d-node, .d-edge, .d-edge-diag').forEach(el => {
+    el.classList.remove('active', 'sec-active');
+  });
+
+  // Step 0: Start States
+  setTimeout(() => {
+    status.textContent = 'Current State: q0';
+    document.getElementById('d1').classList.add('active');
+    document.getElementById('n1').classList.add('sec-active');
+  }, 500);
+
+  // Step 1: Process 'a'
+  setTimeout(() => {
+    status.textContent = "Processing 'a'...";
+    document.getElementById('d1').classList.remove('active');
+    document.getElementById('n1').classList.remove('sec-active');
+    
+    // DFA path
+    document.getElementById('de1').classList.add('active');
+    document.getElementById('d2').classList.add('active');
+    
+    // NFA splits into parallel paths
+    document.getElementById('ne1').classList.add('sec-active');
+    document.getElementById('ne2').classList.add('sec-active');
+    document.getElementById('n2').classList.add('sec-active');
+    document.getElementById('n4').classList.add('sec-active');
+  }, 1500);
+
+  // Step 2: Process 'b'
+  setTimeout(() => {
+    status.textContent = "Processing 'b'...";
+    document.getElementById('de1').classList.remove('active');
+    document.getElementById('d2').classList.remove('active');
+    document.getElementById('ne1').classList.remove('sec-active');
+    document.getElementById('ne2').classList.remove('sec-active');
+    document.getElementById('n2').classList.remove('sec-active');
+    document.getElementById('n4').classList.remove('sec-active');
+
+    // DFA completes
+    document.getElementById('de2').classList.add('active');
+    document.getElementById('d3').classList.add('active');
+    
+    // NFA branches process
+    document.getElementById('ne3').classList.add('sec-active');
+    document.getElementById('ne4').classList.add('sec-active');
+    document.getElementById('n3').classList.add('sec-active'); // Accept branch
+    document.getElementById('n5').classList.add('sec-active'); // Fail branch
+  }, 2500);
+
+  // Result Evaluation
+  setTimeout(() => {
+    status.textContent = "String 'ab' ACCEPTED ✓ (NFA accepted via branch q2)";
+    status.style.color = "var(--emerald)";
+    status.style.textShadow = "0 0 10px var(--emerald-glow)";
+    btn.disabled = false;
+  }, 3500);
+});
+
+// --- SIMULATOR LOGIC & RENDERER ---
+const SR=32, AR=8, COFF=56, ASZ=10;
+let states=[], transitions=[], sCount=0, tCount=0;
+let mode='DFA', tool='select', selState=null, selTrans=null, transSrc=null, dragS=null;
+let simHist=[], simStep=-1;
+let canvas, ctx;
+let animId, time=0;
+
+window.addEventListener('load',()=>{
+  canvas=document.getElementById('canvas');
+  ctx=canvas.getContext('2d');
+  
+  const resizeCanvas = () => {
+    if(document.getElementById('view-simulator').classList.contains('active')){
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+  };
+  window.addEventListener('resize', resizeCanvas);
+  
+  // Interactive events mapped to canvas
+  canvas.addEventListener('mousedown',onMD);
+  canvas.addEventListener('mousemove',onMM);
+  canvas.addEventListener('mouseup',onMU);
+  canvas.addEventListener('dblclick',onDbl);
+  
+  document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+  document.getElementById('btn-dfa').addEventListener('click',()=>setMode('DFA'));
+  document.getElementById('btn-nfa').addEventListener('click',()=>setMode('NFA'));
+  document.getElementById('btn-clear').addEventListener('click',doClear);
+  document.getElementById('btn-example').addEventListener('click',loadExample);
+  document.getElementById('lbl-inp').addEventListener('input',e=>{const s=byId(selState);if(s)s.label=e.target.value;});
+  document.getElementById('btn-start').addEventListener('click',doStart);
+  document.getElementById('btn-accept').addEventListener('click',doAccept);
+  document.getElementById('btn-del-s').addEventListener('click',()=>{if(selState!==null)deleteState(selState);});
+  document.getElementById('btn-run').addEventListener('click',simRun);
+  document.getElementById('btn-step').addEventListener('click',simFwd);
+  document.getElementById('btn-back').addEventListener('click',simBck);
+  document.getElementById('btn-reset').addEventListener('click',simReset);
+  document.getElementById('m-ok').addEventListener('click',mOK);
+  document.getElementById('m-cancel').addEventListener('click',mCancel);
+  document.getElementById('m-inp').addEventListener('keydown',e=>{if(e.key==='Enter')mOK();if(e.key==='Escape')mCancel();});
+  
+  document.addEventListener('keydown',e=>{
+    if(!document.getElementById('view-simulator').classList.contains('active')) return;
+    if(e.target.tagName==='INPUT')return;
+    const k = e.key.toLowerCase();
+    if(k==='v')setTool('select');
+    if(k==='s')setTool('state');
+    if(k==='t')setTool('transition');
+    if(k==='d')setTool('delete');
+    if(e.key==='Delete'&&selState!==null)deleteState(selState);
+  });
+  
+  loadExample();
+  startRenderLoop();
+});
+
+// -- ANIMATION LOOP --
+function startRenderLoop(){
+  if(animId) cancelAnimationFrame(animId);
+  function loop(ms){
+    time = ms;
+    if(document.getElementById('view-simulator').classList.contains('active')) {
+      if(canvas.width !== window.innerWidth) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+      drawGraph();
+    }
+    animId = requestAnimationFrame(loop);
+  }
+  animId = requestAnimationFrame(loop);
+}
+
+// -- LOGIC --
+function setMode(m){
+  if(m === 'DFA' && mode === 'NFA'){
+    for(let t of transitions){
+      if(t.symbols.includes('ε')){ toast('Clear NFA to switch: contains ε'); return; }
+      for(let s of t.symbols){
+        if(transitions.some(r => r.from === t.from && r.to !== t.to && r.symbols.includes(s))){
+          toast(`Clear NFA to switch: multiple '${s}' paths`); return;
+        }
+      }
+    }
+  }
+  mode=m;
+  ['btn-dfa','btn-nfa'].forEach(id=>document.getElementById(id).classList.toggle('active',id==='btn-'+m.toLowerCase()));
+  simReset();
+}
+
+function setTool(t){
+  tool=t; transSrc=null;
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  const hints={select:'Click to select. Drag states to move them.',state:'Click anywhere on the canvas to add a new state.',
+    transition:'Click a source state, then click a target state.',delete:'Click a state or transition arrow to delete it.'};
+  document.getElementById('hint').textContent=hints[t]||'';
+  canvas.style.cursor=t==='state'?'cell':t==='transition'?'crosshair':t==='delete'?'not-allowed':'default';
+}
+
+function addState(x,y){const id=sCount++;states.push({id,x,y,label:'q'+id,isStart:states.length===0,isAccepting:false});}
+function deleteState(id){states=states.filter(s=>s.id!==id);transitions=transitions.filter(t=>t.from!==id&&t.to!==id);if(selState===id){selState=null;updPanel();}}
+function deleteTrans(id){transitions=transitions.filter(t=>t.id!==id);if(selTrans===id)selTrans=null;}
+function addSym(fromId,toId,sym){
+  let t=transitions.find(t=>t.from===fromId&&t.to===toId);
+  if(t){if(!t.symbols.includes(sym)){t.symbols.push(sym);t.symbols.sort();}}
+  else transitions.push({id:tCount++,from:fromId,to:toId,symbols:[sym]});
+}
+function byId(id){return states.find(s=>s.id===id);}
+
+function selS(id){selState=id;selTrans=null;updPanel();}
+function selT(id){selTrans=id;selState=null;updPanel();}
+function desel(){selState=null;selTrans=null;updPanel();}
+function updPanel(){
+  const panel=document.getElementById('prop-panel');
+  if(selState===null){panel.classList.remove('vis');return;}
+  const s=byId(selState);if(!s){panel.classList.remove('vis');return;}
+  panel.classList.add('vis');
+  document.getElementById('lbl-inp').value=s.label;
+  document.getElementById('btn-start').classList.toggle('active',s.isStart);
+  document.getElementById('btn-accept').classList.toggle('active',s.isAccepting);
+}
+function doStart(){const s=byId(selState);if(!s)return;states.forEach(st=>st.isStart=false);s.isStart=true;updPanel();}
+function doAccept(){const s=byId(selState);if(!s)return;s.isAccepting=!s.isAccepting;updPanel();}
+
+function hitS(x,y){for(let i=states.length-1;i>=0;i--){const s=states[i],d2=(x-s.x)**2+(y-s.y)**2;if(d2<=(SR+AR+8)**2)return s;}return null;}
+function hitT(mx,my){let best=null,bd=18;transitions.forEach(t=>{const pts=curvePoints(t);if(!pts)return;pts.forEach(p=>{const d=Math.hypot(mx-p.x,my-p.y);if(d<bd){bd=d;best=t;}});});return best;}
+function curvePoints(t){
+  const f=byId(t.from),to=byId(t.to);if(!f||!to)return null;
+  if(t.from===t.to){
+    const a1=-Math.PI/2-0.45,a2=-Math.PI/2+0.45;
+    const sx=f.x+Math.cos(a1)*SR,sy=f.y+Math.sin(a1)*SR;
+    const ex=f.x+Math.cos(a2)*SR,ey=f.y+Math.sin(a2)*SR;
+    const lift=65,cp1x=sx-28,cp1y=sy-lift,cp2x=ex+28,cp2y=ey-lift;
+    const pts=[];
+    for(let u=0;u<=1;u+=0.08){
+      const mu=1-u;
+      pts.push({x:mu*mu*mu*sx+3*mu*mu*u*cp1x+3*mu*u*u*cp2x+u*u*u*ex, y:mu*mu*mu*sy+3*mu*mu*u*cp1y+3*mu*u*u*cp2y+u*u*u*ey});
+    }
+    return pts;
+  }
+  const bidi=transitions.some(r=>r.from===t.to&&r.to===t.from);
+  const side=bidi?(f.id<to.id?1:-1):0;
+  const g=geo(f,to,side);const pts=[];
+  for(let u=0;u<=1;u+=.1){const mu=1-u;if(side===0)pts.push({x:g.sx+u*(g.ex-g.sx),y:g.sy+u*(g.ey-g.sy)});
+  else pts.push({x:mu*mu*g.sx+2*mu*u*g.cx+u*u*g.ex,y:mu*mu*g.sy+2*mu*u*g.cy+u*u*g.ey});}
+  return pts;
+}
+function geo(f,to,side){
+  const ang=Math.atan2(to.y-f.y,to.x-f.x);
+  if(side===0){const sx=f.x+Math.cos(ang)*SR,sy=f.y+Math.sin(ang)*SR;const ex=to.x-Math.cos(ang)*SR,ey=to.y-Math.sin(ang)*SR;return{sx,sy,cx:(sx+ex)/2,cy:(sy+ey)/2,ex,ey};}
+  const mx=(f.x+to.x)/2,my=(f.y+to.y)/2;
+  const px=-Math.sin(ang)*COFF*side,py=Math.cos(ang)*COFF*side;
+  const cx=mx+px,cy=my+py;
+  const sa=Math.atan2(cy-f.y,cx-f.x),ea=Math.atan2(cy-to.y,cx-to.x);
+  return{sx:f.x+Math.cos(sa)*SR,sy:f.y+Math.sin(sa)*SR,cx,cy,ex:to.x+Math.cos(ea)*SR,ey:to.y+Math.sin(ea)*SR};
+}
+
+function pt(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+let mdPos=null,wasDrag=false;
+function onMD(e){
+  if(e.button!==0)return;const{x,y}=pt(e);mdPos={x,y};wasDrag=false;
+  if(tool==='select'){const s=hitS(x,y);if(s){selS(s.id);dragS={id:s.id,ox:x-s.x,oy:y-s.y};}
+  else{const t=hitT(x,y);if(t)selT(t.id);else desel();}}
+  else if(tool==='transition'){const s=hitS(x,y);if(s){if(transSrc===null){transSrc=s.id;}else{showModal(transSrc,s.id);transSrc=null;}}}
+  else if(tool==='delete'){const s=hitS(x,y);if(s){deleteState(s.id);return;}const t=hitT(x,y);if(t)deleteTrans(t.id);}
+}
+function onMM(e){const{x,y}=pt(e);if(dragS&&tool==='select'){wasDrag=true;const s=byId(dragS.id);if(s){s.x=x-dragS.ox;s.y=y-dragS.oy;}}}
+function onMU(e){if(!wasDrag&&tool==='state'&&e.button===0){const{x,y}=pt(e);if(!hitS(x,y))addState(x,y);}dragS=null;wasDrag=false;}
+function onDbl(e){const{x,y}=pt(e),s=hitS(x,y);if(s){s.isAccepting=!s.isAccepting;if(selState===s.id)updPanel();}}
+
+let mFrom=null,mTo=null;
+function showModal(f,t){
+  mFrom=f;mTo=t;const fl=byId(f),tl=byId(t);
+  document.getElementById('m-sub').innerHTML=`Path: <span style="color:var(--accent)">${fl?.label||'?'}</span> → <span style="color:var(--emerald)">${tl?.label||'?'}</span><br>Comma-separate for multiple (a,b) | ε = epsilon`;
+  document.getElementById('m-inp').value='';
+  document.getElementById('modal').classList.remove('off');
+  setTimeout(()=>document.getElementById('m-inp').focus(),50);
+}
+
+function mOK(){
+  const raw=document.getElementById('m-inp').value.trim();
+  if(!raw){toast('Enter at least one symbol');return;}
+  const syms = raw.split(',').map(s=>s.trim()).filter(Boolean).map(sym=>{ return ['e','eps','epsilon'].includes(sym.toLowerCase())?'ε':sym; });
+  if(mode === 'DFA'){
+    for(const s of syms){
+      if(s === 'ε'){ toast('Epsilon not allowed in DFA'); return; }
+      const conflict = transitions.find(t => t.from === mFrom && t.to !== mTo && t.symbols.includes(s));
+      if(conflict){ toast(`DFA: state already has a transition for '${s}'`); return; }
+    }
+  }
+  syms.forEach(s => addSym(mFrom,mTo,s));
+  document.getElementById('modal').classList.add('off');simReset();
+}
+function mCancel(){document.getElementById('modal').classList.add('off');mFrom=null;mTo=null;}
+
+// -- RENDERER --
+function drawGraph(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawGrid();
+  
+  const step=(simStep>=0&&simHist[simStep])?simHist[simStep]:null;
+  const curIds=step?step.currentStateIds:[]; const actTids=step?step.activeTransIds:[];
+  
+  transitions.forEach(t=>drawTrans(t,actTids));
+  states.forEach(s=>drawState(s,curIds,step));
+  
+  if(tool==='transition'&&transSrc!==null){
+    const src=byId(transSrc);
+    if(src){
+      const pulse = Math.sin(time/150)*4;
+      ctx.save(); ctx.strokeStyle='rgba(255, 170, 0, 0.8)'; ctx.lineWidth=2; ctx.setLineDash([6,6]);
+      ctx.beginPath(); ctx.arc(src.x,src.y,SR+12+pulse,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+function drawGrid(){
+  ctx.save(); ctx.strokeStyle='rgba(255, 255, 255, 0.03)'; ctx.lineWidth=1; const g=40;
+  for(let x=0;x<canvas.width;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+  for(let y=0;y<canvas.height;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+  const cx = canvas.width/2, cy = canvas.height/2;
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(cx, cy));
+  grd.addColorStop(0, 'rgba(255, 170, 0, 0.03)');
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
+}
+
+function drawState(s,curIds,step){
+  const isCur=curIds.includes(s.id), isSel=selState===s.id, isSrc=transSrc===s.id;
+  const isDone=step?.done, accepted=step?.accepted;
+  
+  ctx.save();
+  // Glow / Pulse effect
+  let pulse = 0;
+  if(isCur){ 
+    pulse = Math.sin(time/150)*6;
+    let gc='#ffaa00'; if(isDone)gc=(accepted&&s.isAccepting)?'#00ff88':'#ff2a55';
+    ctx.shadowBlur=30 + pulse; ctx.shadowColor=gc; 
+  } else if(isSel||isSrc){ 
+    ctx.shadowBlur=20; ctx.shadowColor=isSrc?'#ff2a55':'#fff'; 
+  } else {
+    ctx.shadowBlur=10; ctx.shadowColor='rgba(0,0,0,0.8)'; 
+  }
+
+  // Base Fill with subtle gradient
+  const grad = ctx.createRadialGradient(s.x, s.y-10, 0, s.x, s.y, SR);
+  grad.addColorStop(0, isCur ? 'rgba(255, 170, 0, 0.4)' : isSel ? 'rgba(255,255,255,0.1)' : 'rgba(30, 25, 20, 0.9)');
+  grad.addColorStop(1, isCur ? 'rgba(255, 102, 0, 0.6)' : isSel ? 'rgba(100,100,100,0.2)' : 'rgba(10, 8, 5, 1)');
+  
+  // Accepting outer ring
+  if(s.isAccepting){
+    ctx.beginPath(); ctx.arc(s.x,s.y,SR+AR,0,Math.PI*2); 
+    ctx.strokeStyle=isCur?'#ffaa00':'#00ff88'; ctx.lineWidth=2; 
+    ctx.stroke();
+  }
+  
+  ctx.beginPath(); ctx.arc(s.x,s.y,SR,0,Math.PI*2);
+  ctx.fillStyle=grad; ctx.fill();
+  
+  // Border
+  ctx.strokeStyle=isCur?'#ffaa00':isSel?'#fff':isSrc?'#ff2a55':'#475569';
+  ctx.lineWidth=isSel||isCur? 3 : 2; 
+  ctx.stroke(); 
+  ctx.shadowBlur=0; 
+  
+  // Text Label
+  ctx.fillStyle=isCur?'#000':isSel?'#fff':'#cbd5e1';
+  ctx.font=`bold ${s.label.length>3?'11':'15'}px "Space Grotesk",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle'; 
+  ctx.fillText(s.label,s.x,s.y);
+  
+  // Start Arrow
+  if(s.isStart){
+    const ax=s.x-SR-34, ex=s.x-SR-4;
+    ctx.save(); ctx.strokeStyle='#ff2a55'; ctx.fillStyle='#ff2a55'; ctx.lineWidth=3; 
+    ctx.shadowBlur=15; ctx.shadowColor='#ff2a55'; 
+    ctx.beginPath(); ctx.moveTo(ax,s.y); ctx.lineTo(ex,s.y); ctx.stroke(); 
+    arrowAt(ex,s.y,0); ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawTrans(t,actTids){
+  const f=byId(t.from), to=byId(t.to); if(!f||!to)return;
+  const isAct=actTids.includes(t.id), isSel=selTrans===t.id;
+  ctx.save(); 
+  const col=isAct?'#ffaa00':isSel?'#fff':'#475569';
+  ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=isAct||isSel?3:2;
+  
+  if(isAct){ ctx.shadowBlur=20; ctx.shadowColor='#ffaa00'; }
+  else if(isSel){ ctx.shadowBlur=10; ctx.shadowColor='#fff'; }
+  
+  const lbl=t.symbols.join(', ');
+  if(t.from===t.to) drawLoop(f,lbl);
+  else {
+    const bidi=transitions.some(r=>r.from===t.to&&r.to===t.from);
+    const side=bidi?(f.id<to.id?1:-1):0;
+    drawArrow(geo(f,to,side),lbl,side!==0);
+  }
+  ctx.restore();
+}
+
+function drawLoop(s, lbl) {
+  const spread = 0.5, a1 = -Math.PI / 2 - spread, a2 = -Math.PI / 2 + spread;
+  const sx = s.x + Math.cos(a1) * SR, sy = s.y + Math.sin(a1) * SR;
+  const ex = s.x + Math.cos(a2) * SR, ey = s.y + Math.sin(a2) * SR;
+  const lift = 70, flare = 32;
+  const cp1x = sx - flare, cp1y = sy - lift, cp2x = ex + flare, cp2y = ey - lift;
+  
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, ex, ey); ctx.stroke();
+  const arrowAng = Math.atan2(ey - cp2y, ex - cp2x); arrowAt(ex, ey, arrowAng);
+  drawLbl(s.x, s.y - SR - lift * 0.85, lbl);
+}
+
+function drawArrow(g,lbl,curved){
+  ctx.beginPath();ctx.moveTo(g.sx,g.sy);
+  if(curved) ctx.quadraticCurveTo(g.cx,g.cy,g.ex,g.ey); else ctx.lineTo(g.ex,g.ey); 
+  ctx.stroke();
+  let ang; if(curved){const t=.95,mt=1-t;ang=Math.atan2(2*mt*(g.cy-g.sy)+2*t*(g.ey-g.cy),2*mt*(g.cx-g.sx)+2*t*(g.ex-g.cx));}else ang=Math.atan2(g.ey-g.sy,g.ex-g.sx);
+  arrowAt(g.ex,g.ey,ang);
+  let lx=curved?g.cx:(g.sx+g.ex)/2,ly=curved?g.cy:(g.sy+g.ey)/2;
+  if(!curved){const a=Math.atan2(g.ey-g.sy,g.ex-g.sx);lx-=Math.sin(a)*18;ly+=Math.cos(a)*18;}
+  drawLbl(lx,ly,lbl);
+}
+
+function arrowAt(x,y,a){
+  const s=ASZ; ctx.save(); ctx.translate(x,y); ctx.rotate(a);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-s*1.2,-s*.5); ctx.lineTo(-s*.7,0); ctx.lineTo(-s*1.2,s*.5); ctx.closePath(); ctx.fill(); 
+  ctx.restore();
+}
+
+function drawLbl(x,y,txt){
+  ctx.save(); ctx.font='bold 12px "JetBrains Mono",monospace'; 
+  const w=ctx.measureText(txt).width+16, h=22; 
+  ctx.fillStyle='rgba(15, 10, 5, 0.85)'; // Glassy label
+  ctx.strokeStyle='rgba(255,170,0,0.15)';
+  ctx.beginPath(); ctx.roundRect(x-w/2,y-h/2,w,h,6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#ffaa00'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(txt,x,y); 
+  ctx.restore();
+}
+
+// -- SIMULATION LOGIC --
+function epsClosure(ids){const cl=new Set(ids),st=[...ids];while(st.length){const sid=st.pop();transitions.forEach(t=>{if(t.from===sid&&t.symbols.includes('ε')&&!cl.has(t.to)){cl.add(t.to);st.push(t.to);}});}return[...cl];}
+function nfaMove(ids,sym){const ns=new Set(),tids=[];ids.forEach(sid=>transitions.forEach(t=>{if(t.from===sid&&t.symbols.includes(sym)){ns.add(t.to);tids.push(t.id);}}));return{ns:[...ns],tids};}
+function buildSim(input){
+  const start=states.find(s=>s.isStart);if(!start){toast('No start state defined!');return false;}
+  const steps=[];
+  if(mode==='DFA'){let cur=start.id;steps.push({currentStateIds:[cur],activeTransIds:[],symbol:null,stepIdx:0});
+    for(let i=0;i<input.length;i++){const sym=input[i];const t=transitions.find(r=>r.from===cur&&r.symbols.includes(sym));
+    if(!t){steps.push({currentStateIds:[],activeTransIds:[],symbol:sym,stepIdx:i+1,dead:true});break;}
+    cur=t.to;steps.push({currentStateIds:[cur],activeTransIds:[t.id],symbol:sym,stepIdx:i+1});}}
+  else{let curIds=epsClosure([start.id]);steps.push({currentStateIds:curIds,activeTransIds:[],symbol:null,stepIdx:0});
+    for(let i=0;i<input.length;i++){const sym=input[i];const{ns,tids}=nfaMove(curIds,sym);curIds=epsClosure(ns);
+    steps.push({currentStateIds:curIds,activeTransIds:tids,symbol:sym,stepIdx:i+1});if(curIds.length===0)break;}}
+  const last=steps[steps.length-1];
+  const accepted=!last.dead&&last.currentStateIds.length>0&&last.stepIdx===input.length&&last.currentStateIds.some(id=>{const s=byId(id);return s?.isAccepting;});
+  last.done=true;last.accepted=accepted;simHist=steps;return true;
+}
+
+function simRun(){const input=document.getElementById('sim-inp').value;if(!buildSim(input))return;simStep=simHist.length-1;updSim();}
+function simFwd(){const input=document.getElementById('sim-inp').value;if(simStep<0){if(!buildSim(input))return;simStep=0;}else if(simStep<simHist.length-1)simStep++;updSim();}
+function simBck(){if(simStep>0){simStep--;updSim();}}
+function simReset(){simHist=[];simStep=-1;updSim();}
+
+function updSim(){
+  const input=document.getElementById('sim-inp').value;
+  const tape=document.getElementById('tape');tape.innerHTML='';
+  if(input.length===0){const c=mkCell('ε');if(simStep>=0)c.className='tc read';tape.appendChild(c);}
+  else{const si=(simStep>=0&&simHist[simStep])?simHist[simStep].stepIdx:-1;
+  for(let i=0;i<input.length;i++){const c=mkCell(input[i]);if(si<0)c.className='tc';else if(i<si)c.className='tc read';else if(i===si)c.className='tc cur';else c.className='tc';tape.appendChild(c);}}
+  const sd=document.getElementById('st-disp');
+  if(simStep<0)sd.innerHTML='STATES: <span>—</span>';
+  else{const step=simHist[simStep];const lbls=step.currentStateIds.map(id=>byId(id)?.label||'?').join(', ');sd.innerHTML=`STATES: <span>{${lbls||'∅'}}</span>`;}
+  const res=document.getElementById('result');
+  if(simStep>=0&&simHist[simStep]?.done){const ok=simHist[simStep].accepted;res.textContent=ok?'ACCEPTED ✓':'REJECTED ✗';res.className='result '+(ok?'ok':'bad');}
+  else{res.textContent='';res.className='result';}
+  document.getElementById('btn-step').disabled=simStep>=0&&simStep>=simHist.length-1;
+  document.getElementById('btn-back').disabled=simStep<=0;
+}
+function mkCell(ch){const d=document.createElement('div');d.className='tc';d.textContent=ch;return d;}
+
+let toastT=null;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),3000);}
+function doClear(){if(!confirm('Clear all states and transitions?'))return;_clearAll();}
+function _clearAll(){states=[];transitions=[];sCount=0;tCount=0;selState=null;selTrans=null;transSrc=null;simHist=[];simStep=-1;updPanel();updSim();}
+
+function loadExample(){
+  _clearAll();
+  // Keep example roughly in center
+  const cx = window.innerWidth > 0 ? window.innerWidth/2 : 600;
+  const cy = window.innerHeight > 0 ? window.innerHeight/2 : 400;
+  
+  if(mode==='DFA'){
+    states=[{id:0,x:cx-250,y:cy,label:'q0',isStart:true,isAccepting:false},{id:1,x:cx,y:cy,label:'q1',isStart:false,isAccepting:false},{id:2,x:cx+250,y:cy,label:'q2',isStart:false,isAccepting:true}];
+    sCount=3;
+    transitions=[{id:0,from:0,to:0,symbols:['b']},{id:1,from:0,to:1,symbols:['a']},{id:2,from:1,to:1,symbols:['a']},{id:3,from:1,to:2,symbols:['b']},{id:4,from:2,to:1,symbols:['a']},{id:5,from:2,to:0,symbols:['b']}];
+    tCount=6;document.getElementById('sim-inp').value='aab';
+    toast('DFA: accepts strings ending with "ab"');
+  }else{
+    states=[{id:0,x:cx-200,y:cy,label:'q0',isStart:true,isAccepting:false},{id:1,x:cx,y:cy,label:'q1',isStart:false,isAccepting:false},{id:2,x:cx+200,y:cy,label:'q2',isStart:false,isAccepting:true}];
+    sCount=3;
+    transitions=[{id:0,from:0,to:0,symbols:['a','b']},{id:1,from:0,to:1,symbols:['a']},{id:2,from:1,to:2,symbols:['b']},{id:3,from:2,to:2,symbols:['a','b']}];
+    tCount=4;document.getElementById('sim-inp').value='bab';
+    toast('NFA: accepts strings containing "ab"');
+  }
+  updSim();
+}
+</script>
+</body>
+</html>
